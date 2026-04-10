@@ -140,7 +140,7 @@ def generate_KB(inputFile) -> KnowledgeBase:
     return kb
 
 def main():
-    input = r"D:\US\Nam_2_HK_2\Co So Tri Tue Nhan Tao\Project\Project_2\test.txt"
+    input = "Inputs/test.txt"
     kb = generate_KB(input)
 
     for clause in kb.definite_clauses:
