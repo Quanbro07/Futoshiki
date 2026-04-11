@@ -48,7 +48,8 @@ def write_output(outputFile, N:int  , grid: list[list[int]],
         
         output += "\n"
     
-    print(f"{output}")                
+    with open(outputFile, "w") as f:
+        f.write(output)               
 
 def main():
     grid = [
@@ -77,7 +78,7 @@ def main():
 
     greater_v.add((1, 1))
 
-    output = "a"
+    output = "test.txt"
     write_output(output,N,grid,less_h, greater_h, less_v, greater_v)
 
 
