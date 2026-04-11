@@ -39,7 +39,6 @@ def parse_input(inputFile):
 
     for i in range(1, N):
         row = lines[idx].split(", ")
-        print(row)
         idx += 1
         for j in range(len(row)):
             if(row[j] == '1'):
@@ -53,7 +52,7 @@ def parse_input(inputFile):
 
 
 def main():
-    input = r"D:\US\Nam_2_HK_2\Co So Tri Tue Nhan Tao\Project\Project_2\test.txt"
+    input = r"Inputs\test.txt"
     parse_input(input)
 
 
