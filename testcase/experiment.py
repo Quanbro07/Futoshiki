@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Iterable, List, Dict, Any
 
-from generateTestcases import (
+from GenerateTestcases import (
     generate_solution,
     generate_constraints,
     generate_givens,
