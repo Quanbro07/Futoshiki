@@ -8,7 +8,7 @@ def parse_input(inputFile):
 
 
     # Given
-    given: dict[tuple[int,int]: int] = dict()
+    given: dict[tuple[int,int], int] = dict()
 
     for i in range(N):
         row = lines[idx].split(", ")
