@@ -1,64 +1,111 @@
+import time
+import tracemalloc
 from fol.KnowledgeBase import KnowledgeBase
 from fol.Literal import Literal
+from fol.Predicate import Val, Less
+from helperFunction.ParseInput import parse_input
+from helperFunction.GenerateKB import generate_KB
+from helperFunction.GenerateRowColUsed import get_row_col_used
 
 class BackwardChainingSolver:
-    def __init__(self, kb: KnowledgeBase):
+    def __init__(self, kb: KnowledgeBase, N: int, given: dict, 
+                 less_h: set, greater_h: set, less_v: set, greater_v: set):
         self.kb = kb
-
-    def ask(self, goal: Literal, visited: set = None, depth: int = 0) -> bool:
-        if visited is None:
-            visited = set()
-        indent = "  " * depth
-
-        if goal in visited:
-            return False
+        self.N = N
+        self.assignment = given.copy()
         
-        visited.add(goal)
-        print(f"{indent}Goal: {goal}")
+        for (r, c), v in given.items():
+            self.kb.add_fact(Literal(Val(r, c, v)))
+            
+        self.row_used, self.col_used = get_row_col_used(N, given)
+        self.expanded_nodes = 0
 
-        # Base case 1: Goal đã là một fact có sẵn trong KB
-        if goal in self.kb.facts:
-            print(f"{indent}Goal '{goal}' is proven. (Found in facts)")
-            visited.remove(goal)
-            return True
+    def find_empty_cell(self):
+        for i in range(1, self.N + 1):
+            for j in range(1, self.N + 1):
+                if (i, j) not in self.assignment:
+                    return (i, j)
+        return None
+
+    def is_consistent_with_kb(self, i, j, v) -> bool:
+        if v in self.row_used[i] or v in self.col_used[j]:
+            return False
+
+        temp_fact = Literal(Val(i, j, v))
+        self.kb.facts.add(temp_fact)
 
         for clause in self.kb.definite_clauses:
-            if clause.conclusion == goal:
-                print(f"{indent}Trying to prove goal using clause: {clause}")
-                condition_satisfy = True
-                
-                for condition in clause.conditions:
-                    print(f"{indent}Sub-goal required: {condition}")
-                    if not self.ask(condition, visited, depth + 1):
-                        condition_satisfy = False
-                        print(f"{indent}Sub-goal '{condition}' is not proven. Clause fails.")
-                        break
-                
-                if condition_satisfy:
-                    print(f"{indent}Goal '{goal}' is proven. (All sub-goals satisfied)")
-                    visited.remove(goal)
+            if clause.is_conditions_satified(self.kb.facts):
+                conc = clause.conclusion.predicate
+                if isinstance(conc, Less):
+                    v1, v2 = conc.args
+                    if not (v1 < v2):
+                        self.kb.facts.remove(temp_fact)
+                        return False
+
+        self.kb.facts.remove(temp_fact)
+        return True
+
+    def solve(self) -> bool:
+        self.expanded_nodes += 1
+        empty_cell = self.find_empty_cell()
+        if not empty_cell:
+            return True
+
+        r, c = empty_cell
+        for v in range(1, self.N + 1):
+            if self.is_consistent_with_kb(r, c, v):
+                self.assignment[(r, c)] = v
+                self.row_used[r].add(v)
+                self.col_used[c].add(v)
+                fact = Literal(Val(r, c, v))
+                self.kb.add_fact(fact)
+
+                if self.solve():
                     return True
 
-        print(f"{indent}Goal '{goal}' is not proven. (No matching rules or facts)")
-        visited.remove(goal)
+                self.kb.facts.remove(fact)
+                self.row_used[r].remove(v)
+                self.col_used[c].remove(v)
+                del self.assignment[(r, c)]
+
         return False
 
-    def solve_cell(self, i: int, j: int, N: int) -> int:
-        """
-        Dùng backward chaining để truy vấn giá trị Val(i, j, v) cho một ô.
-        """
-        from fol.Predicate import Val
+def main():
+    input_file = "Inputs/test.txt" 
+    N, given, less_h, greater_h, less_v, greater_v = parse_input(input_file)
+    
+    print(f"Initializing {N}x{N} Grid - Given cells: {len(given)}")
+    
+    kb = generate_KB(input_file)
+    
+    solver = BackwardChainingSolver(kb, N, given, less_h, greater_h, less_v, greater_v)
+
+    tracemalloc.start()
+    start_time = time.perf_counter()
+
+    success = solver.solve()
+
+    end_time = time.perf_counter()
+    _, peak_mem = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    print("\n" + "="*40)
+    if success:
+        print("SOLUTION FOUND!")
+        grid_result = [[0 for _ in range(N)] for _ in range(N)]
+        for (r, c), v in solver.assignment.items():
+            grid_result[r-1][c-1] = v
         
-        print(f"\n--- Querying cell ({i}, {j}) using Backward Chaining ---")
-        
-        for v in range(1, N + 1):
-            print(f"\nTesting value {v}...")
-            goal = Literal(Val(i, j, v))
-            
-            # Gọi ask với depth = 0
-            if self.ask(goal, depth=0):
-                print(f"\n=> Result: Cell ({i}, {j}) is proven to be {v}.")
-                return v
-                
-        print(f"\n=> Result: Cannot prove any value for cell ({i}, {j}).")
-        return 0
+        for row in grid_result:
+            print(" ".join(str(val) for val in row))
+    else:
+        print("NO SOLUTION EXISTS.")
+
+    print("="*40)
+    print(f"Execution Time: {end_time - start_time:.4f} seconds")
+    print(f"Peak Memory:    {peak_mem / 1024:.2f} KB")
+    print(f"Expanded Nodes: {solver.expanded_nodes}")
+
+if __name__ == "__main__":
+    main()
