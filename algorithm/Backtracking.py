@@ -3,6 +3,7 @@ from state.PuzzleContext import PuzzleContext
 
 from algorithm.PerformanceMetrics import PerformanceMetrics
 from helperFunction.ParseInput import parse_input
+from helperFunction.WriteOutput import parse_output
 
 import time
 import tracemalloc
@@ -20,13 +21,17 @@ class Backtracking(PerformanceMetrics):
         self.memory = 0.0
         self.expanded_nodes = 0
 
+        self.stopped = False
+
+        MAX_NODE = 1000000
+
         tracemalloc.start()
         start_time = time.time()
         
         # Tạo 1 lần duy nhất
         empty_cells = board.get_empty_cells()
 
-        result = self.run_backtracking(board, empty_cells, 0)
+        result = self.run_backtracking(board, empty_cells, 0, MAX_NODE)
 
         self.time = time.time() - start_time
         
@@ -37,17 +42,25 @@ class Backtracking(PerformanceMetrics):
 
         return result
 
-    def run_backtracking(self,board: Board, empty_cells: list, idx:int):
+    def run_backtracking(self,board: Board, empty_cells: list, idx:int, MAX_NODE):
+        if self.stopped:
+            return False
+
         if idx == len(empty_cells):
             return True
         
+        if self.expanded_nodes >= MAX_NODE:
+            print(f"Exceed MAX NODE({MAX_NODE}): HALT")
+            self.stopped = True
+            return False
+
         i,j = empty_cells[idx]
         self.expanded_nodes += 1
 
         for v in board.get_valid_values(i, j):
             board.assign_value(i, j, v)
 
-            if self.run_backtracking(board, empty_cells, idx + 1):
+            if self.run_backtracking(board, empty_cells, idx + 1, MAX_NODE):
                 return True
         
             board.unassign_value(i, j)
@@ -62,10 +75,13 @@ def main():
     
     context = PuzzleContext(N, given, less_h, greater_h, less_v, greater_v)
     board = Board(given, context)
+    
 
     bt = Backtracking()
     if bt.solve(board):
-        print(board.to_grid())
+        grid = board.to_grid()
+        output = parse_output(grid,context)
+        print(output)
 
 
     print(f"Time:     {bt.time:.4f}s")
