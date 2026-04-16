@@ -27,9 +27,13 @@ def run_gui():
         data = parse_input(input_path)
         print(f"Loaded: {selected_file}")
         return data
-    data = load_new_game() # Mặc định load ngẫu nhiên game khi khởi động
-    N, given, less_h, greater_h, less_v, greater_v = data
+    current_data = load_new_game()
+    N, given, less_h, greater_h, less_v, greater_v = current_data
+    
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Futoshiki Solver - Backtracking Mode")
+    
+    # Đối tượng GUI này khi tạo ra đã tự chạy Backtracking trong __init__
     gui = FutoshikiGUI(N, given, less_h, greater_h, less_v, greater_v)
     clock = pygame.time.Clock()
 
@@ -38,22 +42,27 @@ def run_gui():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+                
             if event.type == pygame.MOUSEBUTTONDOWN:
                 action = gui.handle_click(event.pos)
+                
                 if action == "Restart":
-                    gui.grid = [[0]*N for _ in range(N)]
-                    for (r, c), val in given.items(): gui.grid[r-1][c-1] = val
+                    gui.grid = [[0]*N for _ in range(gui.N)]
+                    for (r, c), val in given.items(): 
+                        gui.grid[r-1][c-1] = val
                     gui.history = []
-                elif action == "Undo":
-                    gui.undo()
+                    
                 elif action == "New Game":
                     new_data = load_new_game()
                     if new_data:
-                        current_data = new_data
-                        N, given, less_h, greater_h, less_v, greater_v = current_data
+                        # Cập nhật lại toàn bộ biến điều hướng
+                        N, given, less_h, greater_h, less_v, greater_v = new_data
+                        # Tạo mới hoàn toàn đối tượng GUI
                         gui = FutoshikiGUI(N, given, less_h, greater_h, less_v, greater_v)
+            
             if event.type == pygame.KEYDOWN:
                 gui.handle_input(event.key)
+
         gui.draw(screen)
         pygame.display.flip()
         clock.tick(30)

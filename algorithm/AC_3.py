@@ -326,7 +326,7 @@ class AC_3(PerformanceMetrics):
     
 
 def main():
-    input = r"Inputs\test.txt"
+    input = r"Inputs\input2.txt"
     
     N, given, less_h, greater_h, less_v, greater_v = parse_input(input)
     print(given)
