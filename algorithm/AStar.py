@@ -72,34 +72,6 @@ class AStar:
         
         return True
     
-    def revise(self, domain: dict, xi, xj, yi, yj, context: PuzzleContext, assignment: dict) -> set:
-        to_remove = set()
-        
-        # Nếu biến (xi, xj) đã được gán (không có trong domain), bỏ qua không revise
-        if (xi,xj) not in domain:
-            return set()
-            
-        # Xác định domain của biến (yi, yj)
-        if (yi,yj) in domain:
-            domain_y = domain[(yi,yj)]
-        elif (yi,yj) in assignment:
-            # Nếu đã gán, domain của nó chính là giá trị duy nhất đó
-            domain_y = {assignment[(yi,yj)]}
-        else:
-            domain_y = set()
-
-        for vx in list(domain[(xi,xj)]):
-            has_support = any(
-                self.is_consistent(xi, xj, vx, yi, yj, vy, context)
-                for vy in domain_y
-            )
-            if not has_support:
-                to_remove.add(vx)
-        
-        domain[(xi,xj)].difference_update(to_remove)
-    
-        return to_remove
-
     
     # Tổng hợp Heuristic
     def compute_h(self, N: int, assignment: dict, current_domain: dict, context: PuzzleContext) -> float:
@@ -107,7 +79,10 @@ class AStar:
 
         return h1
     
-    def propagate(self, domain, i, j, v, context) -> dict | None:
+    def propagate(self, domain: dict[tuple[int,int]: set[int]], 
+                  i, j, v, 
+                  context: PuzzleContext) -> dict | None:
+        
         new_domain = {cell: vals.copy() for cell, vals in domain.items()}
 
         # Xóa ô vừa gán
