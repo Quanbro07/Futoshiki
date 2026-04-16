@@ -99,63 +99,15 @@ class AStar:
         domain[(xi,xj)].difference_update(to_remove)
     
         return to_remove
-    
-    def ac3(self, domain: dict[tuple[int,int]: set[int]], 
-            context: PuzzleContext,
-            assignment: dict[tuple[int,int]: set[int]]) -> tuple[dict, bool]:
-        ac3_changes = {}   # track changes của AC-3
-        
-        queue = set()
-        for (i,j) in context.less_h:
-            queue.add(((i,j), (i,j+1)))
-            queue.add(((i,j+1), (i,j)))
-        for (i,j) in context.greater_h:
-            queue.add(((i,j), (i,j+1)))
-            queue.add(((i,j+1), (i,j)))
-        for (i,j) in context.less_v:
-            queue.add(((i,j), (i+1,j)))
-            queue.add(((i+1,j), (i,j)))
-        for (i,j) in context.greater_v:
-            queue.add(((i,j), (i+1,j)))
-            queue.add(((i+1,j), (i,j)))
 
-        while queue:
-            (xi,xj), (yi,yj) = queue.pop()
-            removed = self.revise(domain, xi, xj, yi, yj, context, assignment)
-            if removed:
-                if not domain.get((xi,xj)):
-                    return ac3_changes, False
-                # Lưu changes
-                ac3_changes.setdefault((xi,xj), set()).update(removed)
-                for nb in [(xi,xj-1),(xi,xj+1),(xi-1,xj),(xi+1,xj)]:
-                    if nb in domain and nb != (yi,yj):
-                        queue.add(((xi,xj), nb))
-
-        return ac3_changes, True
-    
-    def compute_h3(self, current_domain: dict[tuple[int,int]: set[int]],
-                   assignment: dict[tuple[int,int]: set[int]], 
-                   context: PuzzleContext) -> float:
-        temp_domain = {k: set(v) for k, v in current_domain.items()}
-
-        _, success = self.ac3(temp_domain, context, assignment)
-
-        if not success:
-
-            # Nếu AC-3 phát hiện vô nghiệm -> Chi phí đến đích là vô cực
-            return math.inf
-        
-        return 0
     
     # Tổng hợp Heuristic
     def compute_h(self, N: int, assignment: dict, current_domain: dict, context: PuzzleContext) -> float:
         h1 = self.compute_h1(N, assignment)
-        h2 = self.compute_h2(assignment, context)
-        #h3 = self.compute_h3(current_domain, assignment, context)
 
-        return max(h1, h2)
+        return h1
     
-    def propagate(self, assignment, domain, i, j, v, context) -> dict | None:
+    def propagate(self, domain, i, j, v, context) -> dict | None:
         new_domain = {cell: vals.copy() for cell, vals in domain.items()}
 
         # Xóa ô vừa gán
@@ -223,7 +175,7 @@ class AStar:
         }
         # Propagate given clues
         for (i,j), v in board.assignment.items():
-            domain = self.propagate(board.assignment, domain, i, j, v, board.context)
+            domain = self.propagate(domain, i, j, v, board.context)
             if domain is None:
                 return None
         return domain
@@ -289,7 +241,7 @@ class AStar:
             i,j = self.select_cell(current_domain)
 
             for v in current_domain[(i,j)]:
-                new_domain = self.propagate(assignment, current_domain, i, j, v, board.context)
+                new_domain = self.propagate(current_domain, i, j, v, board.context)
                 if new_domain is None:
                     continue
 
