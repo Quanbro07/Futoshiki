@@ -36,7 +36,7 @@ class Board:
     def get_valid_values(self,i , j)->list[int]:
         ctx = self.context
         return [
-            v for v in range(1, self.N + 1) 
+            v for v in range(1, self.N + 1)
             if is_valid(self.assignment, i, j, v, 
                         ctx.row_used, ctx.col_used, 
                         ctx.less_h, ctx.greater_h,
@@ -48,7 +48,7 @@ class Board:
         for i in range(self.N):
             row = []
             for j in range(self.N):
-                v = self.assignment[(i + 1,j + 1)]
+                v = self.assignment.get((i + 1,j + 1))
                 if v is not None:
                     row.append(v)
                 else:
