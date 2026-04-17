@@ -71,7 +71,7 @@ def format_futoshiki_board(size, board, h_cons, v_cons, title=None):
 
 def main():
     input_folder = os.path.join(os.path.dirname(__file__), '../Inputs')
-    output_folder = os.path.join(os.path.dirname(__file__), '../Inputs')
+    output_folder = os.path.join(os.path.dirname(__file__), '../testing')
     os.makedirs(output_folder, exist_ok=True)
 
     output_txt = os.path.join(output_folder, 'boards_from_inputs.txt')

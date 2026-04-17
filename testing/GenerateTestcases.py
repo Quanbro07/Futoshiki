@@ -153,33 +153,32 @@ def inject_contradictory_constraints(solution, h_cons, v_cons, n, seed=None):
     h = deepcopy(h_cons)
     v = deepcopy(v_cons)
 
-    # Flip existing horizontal constraints
+    # Flip existing horizontal constraints.
     h_positions = [(i, j) for i in range(n) for j in range(n - 1) if h[i][j] != 0]
     num_flip_h = max(1, len(h_positions) // 2)
     random.shuffle(h_positions)
     for i, j in h_positions[:num_flip_h]:
         h[i][j] = -h[i][j]
 
-    # Flip existing vertical constraints
+    # Flip existing vertical constraints.
     v_positions = [(i, j) for i in range(n - 1) for j in range(n) if v[i][j] != 0]
     num_flip_v = max(1, len(v_positions) // 2)
     random.shuffle(v_positions)
     for i, j in v_positions[:num_flip_v]:
         v[i][j] = -v[i][j]
 
-    # Inject extra wrong constraints in previously-empty horizontal slots
+    # Add wrong-direction constraints on some empty slots.
     empty_h = [(i, j) for i in range(n) for j in range(n - 1) if h[i][j] == 0]
     random.shuffle(empty_h)
     for i, j in empty_h[:max(2, n // 2)]:
         correct = 1 if solution[i][j] < solution[i][j + 1] else -1
-        h[i][j] = -correct  # deliberately wrong direction
+        h[i][j] = -correct
 
-    # Inject extra wrong constraints in previously-empty vertical slots
     empty_v = [(i, j) for i in range(n - 1) for j in range(n) if v[i][j] == 0]
     random.shuffle(empty_v)
     for i, j in empty_v[:max(2, n // 2)]:
         correct = 1 if solution[i][j] < solution[i + 1][j] else -1
-        v[i][j] = -correct  # deliberately wrong direction
+        v[i][j] = -correct
 
     return h, v
 
@@ -192,7 +191,6 @@ def inject_contradictory_givens(solution, puzzle, n, seed=None):
     given_cells = [(i, j) for i in range(n) for j in range(n) if p[i][j] != 0]
 
     if not given_cells:
-        # No givens to sabotage → just insert a duplicate in the top-left corner
         p[0][0] = solution[0][0]
         p[0][1] = solution[0][0]
         return p
@@ -206,15 +204,57 @@ def inject_contradictory_givens(solution, puzzle, n, seed=None):
                 p[ci][cj] = p[ci][k]
                 return p
 
-    # If we couldn't create a duplicate from existing givens, forcibly insert one in the first row
     row0_givens = [j for j in range(n) if p[0][j] != 0]
-    if len(row0_givens) >= 1:
+    if row0_givens:
         j1 = row0_givens[0]
         target_j = 0 if j1 != 0 else 1
         p[0][target_j] = p[0][j1]
     else:
         p[0][0] = solution[0][0]
         p[0][1] = solution[0][0]
+
+    return p
+
+def inject_hidden_cycle_contradiction(h_cons, v_cons, n, seed=None):
+    if seed is not None:
+        random.seed(seed)
+
+    h = deepcopy(h_cons)
+    v = deepcopy(v_cons)
+
+    # Create a 4-edge inequality cycle on a random 2x2 block:
+    # A < B < D < C < A (globally impossible, but no immediate duplicate givens).
+    #
+    # Coordinates in a 2x2 block:
+    #   A = (r, c), B = (r, c+1)
+    #   C = (r+1, c), D = (r+1, c+1)
+    #
+    # Encoded constraints:
+    #   A < B          -> h[r][c]     =  1
+    #   B < D          -> v[r][c + 1] =  1
+    #   D < C (C > D)  -> h[r + 1][c] = -1
+    #   C < A (A > C)  -> v[r][c]     = -1
+    r = random.randint(0, n - 2)
+    c = random.randint(0, n - 2)
+
+    h[r][c] = 1
+    v[r][c + 1] = 1
+    h[r + 1][c] = -1
+    v[r][c] = -1
+
+    return h, v, (r, c)
+
+
+def clear_cycle_givens(puzzle, cycle_anchor):
+    r, c = cycle_anchor
+
+    p = deepcopy(puzzle)
+
+    # Keep givens away from the contradiction block so the trap is less obvious.
+    p[r][c] = 0
+    p[r][c + 1] = 0
+    p[r + 1][c] = 0
+    p[r + 1][c + 1] = 0
 
     return p
 
@@ -359,16 +399,12 @@ def generate_multiple(n, density, ratio, seed, max_tries=150):
     return None
 
 
-def generate_nosolution(n, density, ratio, seed, max_tries=150):
+def generate_nosolution_local_inconsistent(n, density, ratio, seed, max_tries=150):
     """
-    Generate an unsolvable puzzle by applying two sabotage methods together:
-      1. inject_contradictory_constraints – flips half the constraints and
-         adds extra wrong-direction ones.
-      2. inject_contradictory_givens – inserts a duplicate value in a row,
-         violating the Latin-square uniqueness requirement.
+    Generate an unsolvable puzzle with contradictions that are visible locally.
 
-    Both methods are stacked to maximise robustness across board sizes.
-    Verified with classify_puzzle before accepting.
+    This reproduces the old sabotage behavior for stress-testing validators that
+    reject invalid inputs before search.
     """
     for attempt in range(max_tries):
         cur_seed = seed + attempt * 1000
@@ -378,13 +414,47 @@ def generate_nosolution(n, density, ratio, seed, max_tries=150):
         )
         puzzle = generate_givens(solution, n, ratio=ratio, seed=cur_seed + 2)
 
-        # Sabotage 1: flip/add wrong constraints
         bad_h, bad_v = inject_contradictory_constraints(
             solution, h_cons, v_cons, n, seed=cur_seed + 3
         )
-        # Sabotage 2: insert a duplicate given clue
         bad_puzzle = inject_contradictory_givens(
             solution, puzzle, n, seed=cur_seed + 4
+        )
+
+        if classify_puzzle(n, bad_puzzle, bad_h, bad_v) == "NOSOLUTION":
+            return bad_puzzle, bad_h, bad_v, attempt + 1
+
+    return None
+
+
+def generate_nosolution_global_inconsistent(n, density, ratio, seed, max_tries=150):
+    """
+     Generate an unsolvable puzzle that still looks locally valid.
+
+     Strategy:
+        1. Build a normal valid base puzzle from a full solution.
+        2. Inject one hidden inequality cycle on a 2x2 block:
+            A < B < D < C < A. This creates a global contradiction without
+            blatant duplicate givens.
+        3. Clear givens in that 2x2 area to avoid making the contradiction
+            visually obvious in the input.
+
+     Always verified with classify_puzzle before accepting.
+    """
+    for attempt in range(max_tries):
+        cur_seed = seed + attempt * 1000
+        solution = generate_solution(n, seed=cur_seed)
+        h_cons, v_cons = generate_constraints(
+            solution, n, density=density, seed=cur_seed + 1
+        )
+        puzzle = generate_givens(solution, n, ratio=ratio, seed=cur_seed + 2)
+
+        # Sabotage: inject a hidden global contradiction via inequality cycle
+        bad_h, bad_v, cycle_anchor = inject_hidden_cycle_contradiction(
+            h_cons, v_cons, n, seed=cur_seed + 3
+        )
+        bad_puzzle = clear_cycle_givens(
+            puzzle, cycle_anchor
         )
 
         if classify_puzzle(n, bad_puzzle, bad_h, bad_v) == "NOSOLUTION":
@@ -401,37 +471,21 @@ def generate_nosolution(n, density, ratio, seed, max_tries=150):
 TEST_CONFIGS format:
   (puzzle_type, n, density, ratio, seed)
 
-puzzle_type : "UNIQUE" | "MULTIPLE" | "NOSOLUTION"
+puzzle_type : "UNIQUE" | "MULTIPLE" | "NOSOLUTION_LOCAL" | "NOSOLUTION_GLOBAL"
 n           : grid size (4–9)
 density     : base probability of placing a constraint edge
 ratio       : base fraction of cells revealed as given clues
 seed        : base random seed
 
 For MULTIPLE  → density/ratio are automatically reduced internally.
-For NOSOLUTION → density/ratio control the base puzzle before sabotage.
+For NOSOLUTION_LOCAL  → uses old, locally inconsistent sabotage.
+For NOSOLUTION_GLOBAL → uses hidden global contradiction cycle sabotage.
 """
 
 TEST_CONFIGS = [
-    # ── UNIQUE solutions ──────────────────────────────────────────────────
-    ("UNIQUE",     4, 0.30, 0.20,  42),   # 01: 4×4 medium
-    ("UNIQUE",     5, 0.35, 0.20,  55),   # 02: 5×5 medium
-    ("UNIQUE",     6, 0.35, 0.22,  64),   # 03: 6×6 medium
-    ("UNIQUE",     7, 0.28, 0.16,  37),   # 04: 7×7 medium
-    ("UNIQUE",     9, 0.35, 0.22,  19),   # 05: 9×9 medium
-
-    # ── MULTIPLE solutions ────────────────────────────────────────────────
-    ("MULTIPLE",   4, 0.50, 0.45,  14),   # 06: 4×4
-    ("MULTIPLE",   5, 0.38, 0.40,  88),   # 07: 5×5
-    ("MULTIPLE",   6, 0.45, 0.30,  72),   # 08: 6×6
-    ("MULTIPLE",   7, 0.40, 0.35,  56),   # 09: 7×7
-    ("MULTIPLE",   9, 0.42, 0.32,  37),   # 10: 9×9
-
-    # ── NO solution ───────────────────────────────────────────────────────
-    ("NOSOLUTION", 4, 0.40, 0.30,  77),   # 11: 4×4
-    ("NOSOLUTION", 5, 0.25, 0.20,  23),   # 12: 5×5
-    ("NOSOLUTION", 6, 0.30, 0.18,  17),   # 13: 6×6
-    ("NOSOLUTION", 7, 0.38, 0.25,  47),   # 14: 7×7
-    ("NOSOLUTION", 9, 0.35, 0.20,  61),   # 15: 9×9
+    # ── NO solution (locally inconsistent, keep old behavior) ────────────
+    ("NOSOLUTION_LOCAL",  7, 0.38, 0.25,  47),  # 11: 7×7 local-invalid
+    ("NOSOLUTION_LOCAL",  9, 0.35, 0.20,  61),  # 12: 9×9 local-invalid
 ]
 
 
@@ -447,16 +501,24 @@ def main():
     print(f"{'#':>3}  {'Type':<12} {'N':>2}  {'Status':<35}  {'Attempts':>8}")
     print("-" * 65)
 
-    summary = {"UNIQUE": 0, "MULTIPLE": 0, "NOSOLUTION": 0, "FAILED": 0}
+    summary = {
+        "UNIQUE": 0,
+        "MULTIPLE": 0,
+        "NOSOLUTION_LOCAL": 0,
+        "NOSOLUTION_GLOBAL": 0,
+        "FAILED": 0,
+    }
 
-    for idx, (ptype, n, density, ratio, seed) in enumerate(TEST_CONFIGS, start=1):
+    for idx, (ptype, n, density, ratio, seed) in enumerate(TEST_CONFIGS, start=11):
 
         if ptype == "UNIQUE":
             result = generate_unique(n, density, ratio, seed)
         elif ptype == "MULTIPLE":
             result = generate_multiple(n, density, ratio, seed)
-        else:  # NOSOLUTION
-            result = generate_nosolution(n, density, ratio, seed)
+        elif ptype == "NOSOLUTION_LOCAL":
+            result = generate_nosolution_local_inconsistent(n, density, ratio, seed)
+        else:  # NOSOLUTION_GLOBAL
+            result = generate_nosolution_global_inconsistent(n, density, ratio, seed)
 
         if result is not None:
             puzzle, h_cons, v_cons, attempts = result
