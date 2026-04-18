@@ -483,9 +483,30 @@ For NOSOLUTION_GLOBAL → uses hidden global contradiction cycle sabotage.
 """
 
 TEST_CONFIGS = [
+    # ── UNIQUE solutions ──────────────────────────────────────────────────
+    ("UNIQUE",     4, 0.30, 0.20,  42),   # 01: 4×4 medium
+    ("UNIQUE",     5, 0.35, 0.20,  55),   # 02: 5×5 medium
+    ("UNIQUE",     6, 0.35, 0.22,  64),   # 03: 6×6 medium
+    ("UNIQUE",     7, 0.28, 0.16,  37),   # 04: 7×7 medium
+    ("UNIQUE",     9, 0.35, 0.22,  19),   # 05: 9×9 medium
+
+    # ── MULTIPLE solutions ────────────────────────────────────────────────
+    ("MULTIPLE",   4, 0.50, 0.45,  14),   # 06: 4×4
+    ("MULTIPLE",   5, 0.38, 0.40,  88),   # 07: 5×5
+    ("MULTIPLE",   6, 0.45, 0.30,  72),   # 08: 6×6
+    ("MULTIPLE",   7, 0.40, 0.35,  56),   # 09: 7×7
+    ("MULTIPLE",   9, 0.42, 0.32,  37),   # 10: 9×9
+
     # ── NO solution (locally inconsistent, keep old behavior) ────────────
     ("NOSOLUTION_LOCAL",  7, 0.38, 0.25,  47),  # 11: 7×7 local-invalid
     ("NOSOLUTION_LOCAL",  9, 0.35, 0.20,  61),  # 12: 9×9 local-invalid
+
+    # ── NO solution (locally consistent, globally inconsistent) ───────────
+    ("NOSOLUTION_GLOBAL", 4, 0.40, 0.30,  77),  # 13: 4×4
+    ("NOSOLUTION_GLOBAL", 5, 0.25, 0.20,  23),  # 14: 5×5
+    ("NOSOLUTION_GLOBAL", 6, 0.30, 0.18,  17),  # 15: 6×6
+    ("NOSOLUTION_GLOBAL", 7, 0.34, 0.22, 147),  # 16: 7×7
+    ("NOSOLUTION_GLOBAL", 9, 0.33, 0.20, 261),  # 17: 9×9
 ]
 
 
@@ -509,7 +530,7 @@ def main():
         "FAILED": 0,
     }
 
-    for idx, (ptype, n, density, ratio, seed) in enumerate(TEST_CONFIGS, start=11):
+    for idx, (ptype, n, density, ratio, seed) in enumerate(TEST_CONFIGS, start=1):
 
         if ptype == "UNIQUE":
             result = generate_unique(n, density, ratio, seed)
