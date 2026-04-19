@@ -192,9 +192,9 @@ def _inputs_to_benchmark(project_root: Path) -> list[Path]:
     inputs_dir = project_root / "Inputs"
 
     selected: list[str] = [
-        *(f"input-{i:02d}.txt" for i in range(1, 11)),
-        *(f"input-{i:02d}.txt" for i in range(18, 23)),
-        # *(f"input-{i:02d}.txt" for i in range(11, 18)),
+        #*(f"input-{i:02d}.txt" for i in range(1, 11)),
+        #*(f"input-{i:02d}.txt" for i in range(18, 23)),
+        *(f"input-{i:02d}.txt" for i in range(11, 18)),
     ]
 
     paths = [inputs_dir / name for name in selected]
