@@ -387,6 +387,12 @@ def main() -> int:
         default=0.0,
         help="Timeout in seconds for backward chaining (0 = no timeout).",
     )
+    parser.add_argument(
+        "--cases",
+        dest="cases",
+        default="",
+        help="Comma-separated input indices to run (e.g. 13,14). If omitted, runs all inputs.",
+    )
 
     args = parser.parse_args()
 
@@ -394,7 +400,26 @@ def main() -> int:
     _BACKWARD_TIMEOUT_S = float(args.backward_timeout or 0.0)
 
     input_files = _sorted_input_files(args.inputs_dir)
+
+    # Optional filtering by input indices (e.g., input-13.txt -> 13).
+    cases_raw = str(args.cases or "").strip()
+    if cases_raw:
+        try:
+            selected = {int(x) for x in re.split(r"[ ,;]+", cases_raw) if x.strip()}
+        except ValueError:
+            print(f"Invalid --cases value: {args.cases}. Expected comma-separated integers like 13,14")
+            return 2
+
+        filtered: list[str] = []
+        for p in input_files:
+            idx = _extract_input_index(p)
+            if idx is not None and idx in selected:
+                filtered.append(p)
+        input_files = filtered
     if not input_files:
+        if cases_raw:
+            print(f"No matching input files for --cases={args.cases} in: {args.inputs_dir}")
+            return 1
         print(f"No input files found in: {args.inputs_dir}")
         return 1
 

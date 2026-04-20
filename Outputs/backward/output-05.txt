@@ -1,1 +1,1 @@
-TIMEOUT after 180.00 seconds
+TIMEOUT after 600.00 seconds
