@@ -29,6 +29,7 @@ class BackwardChainingSolver:
 
     def is_consistent_with_kb(self, i, j, v) -> bool:
         if v in self.row_used[i] or v in self.col_used[j]:
+            print(f" [Fail] Val({i}, {j}, {v}) vi phạm Axiom A3/A4 (Trùng hàng/cột)")
             return False
 
         temp_fact = Literal(Val(i, j, v))
@@ -40,6 +41,7 @@ class BackwardChainingSolver:
                 if isinstance(conc, Less):
                     v1, v2 = conc.args
                     if not (v1 < v2):
+                        print(f" [Fail] Val({i}, {j}, {v}) vi phạm Logic So Sánh: Cần Less({v1}, {v2}) nhưng thực tế là {v1} >= {v2}")
                         self.kb.facts.remove(temp_fact)
                         return False
 
@@ -54,7 +56,9 @@ class BackwardChainingSolver:
 
         r, c = empty_cell
         for v in range(1, self.N + 1):
+            print(f"├─ Thử gán Val({r}, {c}, {v})")
             if self.is_consistent_with_kb(r, c, v):
+                print(f"[OK] Chấp nhận Val({r}, {c}, {v})")
                 self.assignment[(r, c)] = v
                 self.row_used[r].add(v)
                 self.col_used[c].add(v)
@@ -63,12 +67,12 @@ class BackwardChainingSolver:
 
                 if self.solve():
                     return True
-
+                print(f"[BACKTRACK] Bế tắc! Rút lại Val({r}, {c}, {v})")
                 self.kb.facts.remove(fact)
                 self.row_used[r].remove(v)
                 self.col_used[c].remove(v)
                 del self.assignment[(r, c)]
-
+        print(f"[Ngõ cụt] Ô ({r}, {c}) không thể điền số nào từ 1-{self.N}. Trả về False.")
         return False
 
 def main():
