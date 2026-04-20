@@ -8,12 +8,8 @@ solvers, so this benchmark uses the best available proxy per algorithm:
   while running the rules.
 
 Usage:
-    python testing/BenchmarkNumOfInferences.py
-    python testing/BenchmarkNumOfInferences.py --repeats 3 --timeout 180
-
-Notes:
-    BackwardChaining can be extremely slow on some puzzles; this script supports
-    running it in an isolated subprocess with a timeout.
+    python testing/benchmark/BenchmarkNumOfInferences.py
+    python testing/benchmark/BenchmarkNumOfInferences.py --repeats 3 --timeout 600
 
 """
 
@@ -29,8 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Literal
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -47,7 +42,7 @@ from helperFunction.GenerateKB import generate_KB
 
 
 REPEATS = 10
-DEFAULT_TIMEOUT_SECONDS = 180.0
+DEFAULT_TIMEOUT_SECONDS = 600.0
 
 
 @dataclass(frozen=True)
@@ -293,8 +288,8 @@ def _inputs_to_benchmark(project_root: Path) -> list[Path]:
     inputs_dir = project_root / "Inputs"
 
     selected: list[str] = [
-        #*(f"input-{i:02d}.txt" for i in range(1, 11)),
-        #*(f"input-{i:02d}.txt" for i in range(18, 23)),
+        # *(f"input-{i:02d}.txt" for i in range(1, 11)),
+        # *(f"input-{i:02d}.txt" for i in range(18, 23)),
         *(f"input-{i:02d}.txt" for i in range(11, 18)),
     ]
 
