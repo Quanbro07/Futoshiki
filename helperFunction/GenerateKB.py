@@ -98,7 +98,7 @@ def generate_KB(inputFile) -> KnowledgeBase:
             if (i,j) in less_v:
                 kb.add_fact(Literal(LessV(i,j)))
                 for v1 in vals:
-                    for v2 in range(v1 + 1, N + 1):
+                    for v2 in vals:
                         kb.add_defnite_clause(DefiniteClause(
                             conditions= [
                                 Literal(LessV(i, j)),
@@ -116,7 +116,7 @@ def generate_KB(inputFile) -> KnowledgeBase:
             if (i,j) in greater_v:
                 kb.add_fact(Literal(GreaterV(i,j)))
                 for v1 in vals:
-                    for v2 in range(v1 + 1, N + 1):
+                    for v2 in vals:
                         kb.add_defnite_clause(DefiniteClause(
                             conditions= [
                                 Literal(GreaterV(i, j)),
