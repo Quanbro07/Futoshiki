@@ -7,7 +7,8 @@ from helperFunction.ParseInput import parse_input
 from helperFunction.GenerateKB import generate_KB
 from helperFunction.GenerateRowColUsed import get_row_col_used
 from algorithm.PerformanceMetrics import PerformanceMetrics
-
+from helperFunction.WriteOutput import parse_output
+from state.PuzzleContext import PuzzleContext
 class BackwardChainingSolver(PerformanceMetrics):
     def __init__(self, kb: KnowledgeBase, N: int, given: dict, 
                  less_h: set, greater_h: set, less_v: set, greater_v: set):
@@ -88,11 +89,10 @@ class BackwardChainingSolver(PerformanceMetrics):
 
 
 def main():
-    input_file = "Inputs/test.txt" 
+    input_file = "Inputs/input4.txt" 
     N, given, less_h, greater_h, less_v, greater_v = parse_input(input_file)
     
-    print(f"Initializing {N}x{N} Grid - Given cells: {len(given)}")
-    
+    context = PuzzleContext(N, given, less_h, greater_h, less_v, greater_v)
     kb = generate_KB(input_file)
     
     solver = BackwardChainingSolver(kb, N, given, less_h, greater_h, less_v, greater_v)
@@ -106,8 +106,8 @@ def main():
         for (r, c), v in solver.assignment.items():
             grid_result[r-1][c-1] = v
         
-        for row in grid_result:
-            print(" ".join(str(val) for val in row))
+        output = parse_output(grid_result, context)
+        print(output)
     else:
         print("NO SOLUTION EXISTS.")
     print("="*40)
