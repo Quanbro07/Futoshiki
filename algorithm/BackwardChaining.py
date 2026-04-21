@@ -6,10 +6,14 @@ from fol.Predicate import Val, Less
 from helperFunction.ParseInput import parse_input
 from helperFunction.GenerateKB import generate_KB
 from helperFunction.GenerateRowColUsed import get_row_col_used
-
-class BackwardChainingSolver:
+from algorithm.PerformanceMetrics import PerformanceMetrics
+from helperFunction.WriteOutput import parse_output
+from state.PuzzleContext import PuzzleContext
+class BackwardChainingSolver(PerformanceMetrics):
     def __init__(self, kb: KnowledgeBase, N: int, given: dict, 
                  less_h: set, greater_h: set, less_v: set, greater_v: set):
+        super().__init__()
+        
         self.kb = kb
         self.N = N
         self.assignment = given.copy()
@@ -46,7 +50,7 @@ class BackwardChainingSolver:
         self.kb.facts.remove(temp_fact)
         return True
 
-    def solve(self) -> bool:
+    def _solve_recursive(self) -> bool:
         self.expanded_nodes += 1
         empty_cell = self.find_empty_cell()
         if not empty_cell:
@@ -61,32 +65,39 @@ class BackwardChainingSolver:
                 fact = Literal(Val(r, c, v))
                 self.kb.add_fact(fact)
 
-                if self.solve():
+                if self._solve_recursive():
                     return True
+                
                 self.kb.facts.remove(fact)
                 self.row_used[r].remove(v)
                 self.col_used[c].remove(v)
                 del self.assignment[(r, c)]
         return False
 
+    def solve(self) -> bool:
+        tracemalloc.start()
+
+        start_time = time.perf_counter()
+        success = self._solve_recursive()
+        self.time = time.perf_counter() - start_time
+        _, peak_mem = tracemalloc.get_traced_memory()
+        self.memory = peak_mem / 1024 
+        
+        tracemalloc.stop()
+        
+        return success
+
+
 def main():
-    input_file = "Inputs/test.txt" 
+    input_file = "Inputs/input4.txt" 
     N, given, less_h, greater_h, less_v, greater_v = parse_input(input_file)
     
-    print(f"Initializing {N}x{N} Grid - Given cells: {len(given)}")
-    
+    context = PuzzleContext(N, given, less_h, greater_h, less_v, greater_v)
     kb = generate_KB(input_file)
     
     solver = BackwardChainingSolver(kb, N, given, less_h, greater_h, less_v, greater_v)
 
-    tracemalloc.start()
-    start_time = time.perf_counter()
-
     success = solver.solve()
-
-    end_time = time.perf_counter()
-    _, peak_mem = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
 
     print("\n" + "="*40)
     if success:
@@ -95,14 +106,13 @@ def main():
         for (r, c), v in solver.assignment.items():
             grid_result[r-1][c-1] = v
         
-        for row in grid_result:
-            print(" ".join(str(val) for val in row))
+        output = parse_output(grid_result, context)
+        print(output)
     else:
         print("NO SOLUTION EXISTS.")
-
     print("="*40)
-    print(f"Execution Time: {end_time - start_time:.4f} seconds")
-    print(f"Peak Memory:    {peak_mem / 1024:.2f} KB")
+    print(f"Execution Time: {solver.time:.4f} seconds")
+    print(f"Peak Memory:    {solver.memory:.2f} KB")
     print(f"Expanded Nodes: {solver.expanded_nodes}")
 
 if __name__ == "__main__":
