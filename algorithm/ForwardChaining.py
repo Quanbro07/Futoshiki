@@ -67,27 +67,20 @@ class ForwardChaining:
 
     def apply_definite_clause(self, clause):
         res = False
-        concl = clause.conclusion
-        concl_name = concl.predicate.__class__.__name__
+        concl_name = clause.conclusion.predicate.__class__.__name__
         
         if concl_name == "Less":
-            for cond in clause.conditions:
-                p_obj = cond.predicate
-                p_name = p_obj.__class__.__name__
-                
-                if p_name in ["LessH", "GreaterH", "LessV", "GreaterV"]:
-                    r, c = p_obj.args
-                    
-                    # Sửa lỗi: Truyền đúng 2 đối số (Small, Big) cho constrain_pair
-                    if p_name == "LessH":      # Ô (r,c) < Ô (r,c+1)
-                        res |= self.constrain_pair((r, c), (r, c + 1))
-                    elif p_name == "GreaterH": # Ô (r,c) > Ô (r,c+1) -> (r,c+1) nhỏ hơn
-                        res |= self.constrain_pair((r, c + 1), (r, c))
-                    elif p_name == "LessV":    # Ô (r,c) < Ô (r+1,c)
-                        res |= self.constrain_pair((r, c), (r + 1, c))
-                    elif p_name == "GreaterV": # Ô (r,c) > Ô (r+1,c) -> (r+1,c) nhỏ hơn
-                        res |= self.constrain_pair((r + 1, c), (r, c))
-                    break 
+            # Tìm predicate chỉ hướng trong conditions
+            direction_pred = next((c.predicate for c in clause.conditions 
+                                if c.predicate.__class__.__name__ in ["LessH", "GreaterH", "LessV", "GreaterV"]), None)
+            
+            if direction_pred:
+                p_name = direction_pred.__class__.__name__
+                r, c = direction_pred.args
+                if p_name == "LessH": res |= self.constrain_pair((r, c), (r, c + 1))
+                elif p_name == "GreaterH": res |= self.constrain_pair((r, c + 1), (r, c))
+                elif p_name == "LessV": res |= self.constrain_pair((r, c), (r + 1, c))
+                elif p_name == "GreaterV": res |= self.constrain_pair((r + 1, c), (r, c))
         return res
     
     def constrain_pair(self, S, B):
@@ -178,7 +171,7 @@ class ForwardChaining:
 
 # --- MAIN CHẠY TERMINAL ---
 if __name__ == "__main__":
-    path = "Inputs/input4.txt" 
+    path = "Inputs/input5.txt" 
     if os.path.exists(path):
         solver = ForwardChaining(path)
         print(f"--- Running Forward Chaining Inference ---")
