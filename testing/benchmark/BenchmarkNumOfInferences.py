@@ -19,6 +19,7 @@ import argparse
 import contextlib
 import io
 import multiprocessing as mp
+import re
 import statistics
 import sys
 from dataclasses import dataclass
@@ -71,8 +72,8 @@ class _ForwardChainingWithInferences(ForwardChaining):
     We count how many domain values are removed across pruning operations.
     """
 
-    def __init__(self, N, given, less_h, greater_h, less_v, greater_v):
-        super().__init__(N, given, less_h, greater_h, less_v, greater_v)
+    def __init__(self, input_path: str | Path):
+        super().__init__(str(input_path))
         self.inferences = 0
 
     def prune_row_col(self, r, c, val):
@@ -82,61 +83,43 @@ class _ForwardChainingWithInferences(ForwardChaining):
                 self.domains[(r, k)].remove(val)
                 self.inferences += 1
                 res = True
-                if not self.domains[(r, k)]:
-                    return True
             if k != r and val in self.domains[(k, c)]:
                 self.domains[(k, c)].remove(val)
                 self.inferences += 1
                 res = True
-                if not self.domains[(k, c)]:
-                    return True
         return res
 
-    def constrain_pair(self, pos1, pos2, type):
-        # Keep original guard to avoid max/min on empty domains.
-        if not self.domains[pos1] or not self.domains[pos2]:
+    def constrain_pair(self, S, B):
+        """Override to count domain pruning events.
+
+        Base semantics: enforce S < B.
+        """
+        if S not in self.domains or B not in self.domains:
+            return False
+        if not self.domains[S] or not self.domains[B]:
             return False
 
         res = False
-        if type == "less":
-            max_v2 = max(self.domains[pos2])
-            before1 = len(self.domains[pos1])
-            new_dom1 = [v for v in self.domains[pos1] if v < max_v2]
-            if len(new_dom1) < before1:
-                self.inferences += before1 - len(new_dom1)
-                self.domains[pos1] = new_dom1
-                res = True
 
-            if not self.domains[pos1]:
+        # Prune S: values must be < max(B)
+        max_B = max(self.domains[B])
+        before_S = len(self.domains[S])
+        new_S = [v for v in self.domains[S] if v < max_B]
+        if len(new_S) < before_S:
+            self.inferences += before_S - len(new_S)
+            self.domains[S] = new_S
+            res = True
+            if not self.domains[S]:
                 return res
 
-            min_v1 = min(self.domains[pos1])
-            before2 = len(self.domains[pos2])
-            new_dom2 = [v for v in self.domains[pos2] if v > min_v1]
-            if len(new_dom2) < before2:
-                self.inferences += before2 - len(new_dom2)
-                self.domains[pos2] = new_dom2
-                res = True
-
-        elif type == "greater":
-            min_v2 = min(self.domains[pos2])
-            before1 = len(self.domains[pos1])
-            new_dom1 = [v for v in self.domains[pos1] if v > min_v2]
-            if len(new_dom1) < before1:
-                self.inferences += before1 - len(new_dom1)
-                self.domains[pos1] = new_dom1
-                res = True
-
-            if not self.domains[pos1]:
-                return res
-
-            max_v1 = max(self.domains[pos1])
-            before2 = len(self.domains[pos2])
-            new_dom2 = [v for v in self.domains[pos2] if v < max_v1]
-            if len(new_dom2) < before2:
-                self.inferences += before2 - len(new_dom2)
-                self.domains[pos2] = new_dom2
-                res = True
+        # Prune B: values must be > min(S)
+        min_S = min(self.domains[S])
+        before_B = len(self.domains[B])
+        new_B = [v for v in self.domains[B] if v > min_S]
+        if len(new_B) < before_B:
+            self.inferences += before_B - len(new_B)
+            self.domains[B] = new_B
+            res = True
 
         return res
 
@@ -187,10 +170,31 @@ def _run_astar_inferences(input_path: str | Path) -> tuple[bool, int]:
 
 
 def _run_forward_inferences(input_path: str | Path) -> tuple[bool, int]:
-    N, given, less_h, greater_h, less_v, greater_v = parse_input(str(input_path))
-    solver = _ForwardChainingWithInferences(N, given.copy(), less_h, greater_h, less_v, greater_v)
+    solver = _ForwardChainingWithInferences(input_path)
     ok = solver.solve()
     return ok, int(getattr(solver, "inferences", 0) or 0)
+
+
+def _normalize_algo_token(token: str) -> str | None:
+    t = str(token).strip().lower()
+    if not t:
+        return None
+    aliases = {
+        "backtracking": "backtracking",
+        "bt": "backtracking",
+        "ac3": "ac3",
+        "ac-3": "ac3",
+        "astar": "astar",
+        "a*": "astar",
+        "a-star": "astar",
+        "forward": "forward",
+        "fc": "forward",
+        "forwardchaining": "forward",
+        "backward": "backward",
+        "bc": "backward",
+        "backwardchaining": "backward",
+    }
+    return aliases.get(t)
 
 
 def _run_backward_inferences(input_path: str | Path) -> tuple[bool, int]:
@@ -346,6 +350,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark number of inferences for solvable Futoshiki puzzles")
     parser.add_argument("--repeats", type=int, default=REPEATS, help="Number of runs per (testcase, algorithm)")
     parser.add_argument(
+        "--algo",
+        "--algorithm",
+        dest="algo",
+        default="all",
+        help=(
+            "Which algorithm(s) to benchmark: backtracking|ac3|astar|forward|backward or all. "
+            "You can pass a comma/space-separated list, e.g. 'ac3,forward'."
+        ),
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -359,23 +373,46 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    solvers: list[tuple[str, Callable[[str | Path], tuple[bool, int]]]] = [
-        ("Backtracking", _run_backtracking_inferences),
-        ("AC_3", _run_ac3_inferences),
-        ("AStar", _run_astar_inferences),
-        ("ForwardChaining", _run_forward_inferences),
-        ("BackwardChaining", _run_backward_inferences),
+    solvers_all: list[tuple[str, str, Callable[[str | Path], tuple[bool, int]]]] = [
+        ("backtracking", "Backtracking", _run_backtracking_inferences),
+        ("ac3", "AC_3", _run_ac3_inferences),
+        ("astar", "AStar", _run_astar_inferences),
+        ("forward", "ForwardChaining", _run_forward_inferences),
+        ("backward", "BackwardChaining", _run_backward_inferences),
     ]
+
+    algo_raw = str(args.algo or "all").strip().lower()
+    if algo_raw in ("", "all", "*"):
+        solvers = solvers_all
+    else:
+        tokens = [t for t in re.split(r"[ ,;]+", algo_raw) if t.strip()]
+        selected: set[str] = set()
+        unknown: list[str] = []
+        for tok in tokens:
+            key = _normalize_algo_token(tok)
+            if key is None:
+                unknown.append(tok)
+            else:
+                selected.add(key)
+        if unknown:
+            raise SystemExit(
+                "Unknown --algo value(s): "
+                + ", ".join(unknown)
+                + ". Expected backtracking|ac3|astar|forward|backward|all (aliases: bt, ac-3, a*, fc, bc)."
+            )
+        solvers = [s for s in solvers_all if s[0] in selected]
+        if not solvers:
+            raise SystemExit("No algorithms selected. Use --algo all or a non-empty list like 'ac3,forward'.")
 
     input_paths = _inputs_to_benchmark(PROJECT_ROOT)
 
-    solver_names = [name for name, _ in solvers]
+    solver_names = [name for _key, name, _fn in solvers]
     input_names = [p.name for p in input_paths]
 
     matrix_cells: list[list[BenchmarkCell]] = [[BenchmarkCell(status="error")] * len(solvers) for _ in input_paths]
 
     for r, input_path in enumerate(input_paths):
-        for c, (solver_name, solver_fn) in enumerate(solvers):
+        for c, (_key, solver_name, solver_fn) in enumerate(solvers):
             if args.isolation == "all":
                 isolate = True
             elif args.isolation == "backward":

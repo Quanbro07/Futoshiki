@@ -241,18 +241,11 @@ def run_astar(input_path: str, output_path: str) -> None:
 def run_forward(input_path: str, output_path: str) -> None:
     N, given, less_h, greater_h, less_v, greater_v, context, _board = _load_puzzle(input_path)
 
-    solver = ForwardChaining(N, given.copy(), less_h, greater_h, less_v, greater_v)
+    solver = ForwardChaining(input_path)
 
-    ok: bool
-    seconds: float
-    peak_kb: float
-
-    def _solve():
-        nonlocal ok
-        ok = solver.solve()
-        return ok
-
-    ok, seconds, peak_kb = _measure(_solve)
+    ok = solver.solve()
+    seconds = getattr(solver, "time", None)
+    peak_kb = getattr(solver, "memory", None)
 
     if ok:
         grid = solver.get_grid()
@@ -262,11 +255,16 @@ def run_forward(input_path: str, output_path: str) -> None:
 
     write_output(output_path, output)
 
-    _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=None, output_path=output_path)
+    _print_case_footer(
+        ok=ok,
+        seconds=seconds,
+        peak_kb=peak_kb,
+        expanded_nodes=None,
+        output_path=output_path,
+    )
 
 
 def run_backward(input_path: str, output_path: str) -> None:
-    # If timeout is set, run in a separate process so we can kill it.
     if _BACKWARD_TIMEOUT_S and _BACKWARD_TIMEOUT_S > 0:
         ctx = mp.get_context("spawn")
         result_queue = ctx.Queue(maxsize=1)

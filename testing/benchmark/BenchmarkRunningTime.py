@@ -14,6 +14,7 @@ import contextlib
 import io
 import multiprocessing as mp
 import argparse
+import re
 import statistics
 import sys
 import time
@@ -78,9 +79,8 @@ def _run_astar(input_path: str | Path) -> bool:
 
 
 def _run_forward_chaining(input_path: str | Path) -> bool:
-    N, given, less_h, greater_h, less_v, greater_v = parse_input(str(input_path))
-    solver = ForwardChaining(N, given, less_h, greater_h, less_v, greater_v)
-    return solver.solve()
+    solver = ForwardChaining(str(input_path))
+    return bool(solver.solve())
 
 
 def _run_backward_chaining(input_path: str | Path) -> bool:
@@ -188,9 +188,9 @@ def _inputs_to_benchmark(project_root: Path) -> list[Path]:
     inputs_dir = project_root / "Inputs"
 
     selected: list[str] = [
-        # *(f"input-{i:02d}.txt" for i in range(1, 11)),
-        # *(f"input-{i:02d}.txt" for i in range(18, 23)),
-        *(f"input-{i:02d}.txt" for i in range(11, 18)),
+        *(f"input-{i:02d}.txt" for i in range(1, 11)),
+        *(f"input-{i:02d}.txt" for i in range(18, 23)),
+        # *(f"input-{i:02d}.txt" for i in range(11, 18)),
     ]
 
     paths = [inputs_dir / name for name in selected]
@@ -238,9 +238,42 @@ def _print_table(
         print(fmt_row(row))
 
 
+def _normalize_algo_token(token: str) -> str | None:
+    """Return canonical algorithm key or None if unknown."""
+    t = str(token).strip().lower()
+    if not t:
+        return None
+    aliases = {
+        "backtracking": "backtracking",
+        "bt": "backtracking",
+        "ac3": "ac3",
+        "ac-3": "ac3",
+        "astar": "astar",
+        "a*": "astar",
+        "a-star": "astar",
+        "forward": "forward",
+        "fc": "forward",
+        "forwardchaining": "forward",
+        "backward": "backward",
+        "bc": "backward",
+        "backwardchaining": "backward",
+    }
+    return aliases.get(t)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark running time for solvable Futoshiki puzzles")
     parser.add_argument("--repeats", type=int, default=REPEATS, help="Number of runs per (testcase, algorithm)")
+    parser.add_argument(
+        "--algo",
+        "--algorithm",
+        dest="algo",
+        default="all",
+        help=(
+            "Which algorithm(s) to benchmark: backtracking|ac3|astar|forward|backward or all. "
+            "You can pass a comma/space-separated list, e.g. 'ac3,forward'."
+        ),
+    )
     parser.add_argument(
         "--timeout",
         type=float,
@@ -257,23 +290,46 @@ def main() -> None:
 
     project_root = PROJECT_ROOT
 
-    solvers: list[tuple[str, Callable[[str | Path], bool]]] = [
-        ("Backtracking", _run_backtracking),
-        ("AC_3", _run_ac3),
-        ("AStar", _run_astar),
-        ("ForwardChaining", _run_forward_chaining),
-        ("BackwardChaining", _run_backward_chaining),
+    solvers_all: list[tuple[str, str, Callable[[str | Path], bool]]] = [
+        ("backtracking", "Backtracking", _run_backtracking),
+        ("ac3", "AC_3", _run_ac3),
+        ("astar", "AStar", _run_astar),
+        ("forward", "ForwardChaining", _run_forward_chaining),
+        ("backward", "BackwardChaining", _run_backward_chaining),
     ]
+
+    algo_raw = str(args.algo or "all").strip().lower()
+    if algo_raw in ("", "all", "*"):
+        solvers = solvers_all
+    else:
+        tokens = [t for t in re.split(r"[ ,;]+", algo_raw) if t.strip()]
+        selected: set[str] = set()
+        unknown: list[str] = []
+        for tok in tokens:
+            key = _normalize_algo_token(tok)
+            if key is None:
+                unknown.append(tok)
+            else:
+                selected.add(key)
+        if unknown:
+            raise SystemExit(
+                "Unknown --algo value(s): "
+                + ", ".join(unknown)
+                + ". Expected backtracking|ac3|astar|forward|backward|all (aliases: bt, ac-3, a*, fc, bc)."
+            )
+        solvers = [s for s in solvers_all if s[0] in selected]
+        if not solvers:
+            raise SystemExit("No algorithms selected. Use --algo all or a non-empty list like 'ac3,forward'.")
 
     input_paths = _inputs_to_benchmark(project_root)
 
-    solver_names = [name for name, _ in solvers]
+    solver_names = [name for _key, name, _fn in solvers]
     input_names = [p.name for p in input_paths]
 
     matrix_cells: list[list[BenchmarkCell]] = [[BenchmarkCell(status="error")] * len(solvers) for _ in input_paths]
 
     for r, input_path in enumerate(input_paths):
-        for c, (solver_name, solver_fn) in enumerate(solvers):
+        for c, (_key, solver_name, solver_fn) in enumerate(solvers):
             if args.isolation == "all":
                 isolate = True
             elif args.isolation == "backward":

@@ -13,6 +13,7 @@ import argparse
 import contextlib
 import io
 import multiprocessing as mp
+import re
 import statistics
 import sys
 import time
@@ -107,13 +108,11 @@ def _run_astar_peak_kb(input_path: str | Path) -> tuple[bool, float]:
 
 
 def _run_forward_peak_kb(input_path: str | Path) -> tuple[bool, float]:
-    N, given, less_h, greater_h, less_v, greater_v = parse_input(str(input_path))
-    solver = ForwardChaining(N, given.copy(), less_h, greater_h, less_v, greater_v)
-
-    def _solve() -> bool:
-        return solver.solve()
-
-    return _measure_peak_kb(_solve)
+    # ForwardChaining measures its own peak memory (tracemalloc) internally.
+    solver = ForwardChaining(str(input_path))
+    ok = solver.solve()
+    peak_kb = float(getattr(solver, "memory", 0.0) or 0.0)
+    return bool(ok), peak_kb
 
 
 def _run_backward_peak_kb(input_path: str | Path) -> tuple[bool, float]:
@@ -125,6 +124,28 @@ def _run_backward_peak_kb(input_path: str | Path) -> tuple[bool, float]:
         return solver.solve()
 
     return _measure_peak_kb(_solve)
+
+
+def _normalize_algo_token(token: str) -> str | None:
+    t = str(token).strip().lower()
+    if not t:
+        return None
+    aliases = {
+        "backtracking": "backtracking",
+        "bt": "backtracking",
+        "ac3": "ac3",
+        "ac-3": "ac3",
+        "astar": "astar",
+        "a*": "astar",
+        "a-star": "astar",
+        "forward": "forward",
+        "fc": "forward",
+        "forwardchaining": "forward",
+        "backward": "backward",
+        "bc": "backward",
+        "backwardchaining": "backward",
+    }
+    return aliases.get(t)
 
 
 def _benchmark_one(
@@ -221,9 +242,9 @@ def _inputs_to_benchmark(project_root: Path) -> list[Path]:
     inputs_dir = project_root / "Inputs"
 
     selected: list[str] = [
-        # *(f"input-{i:02d}.txt" for i in range(1, 11)),
-        # *(f"input-{i:02d}.txt" for i in range(18, 23)),
-        *(f"input-{i:02d}.txt" for i in range(11, 18)),
+        *(f"input-{i:02d}.txt" for i in range(1, 11)),
+        *(f"input-{i:02d}.txt" for i in range(18, 23)),
+        # *(f"input-{i:02d}.txt" for i in range(11, 18)),
     ]
 
     paths = [inputs_dir / name for name in selected]
@@ -274,6 +295,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark peak memory usage for solvable Futoshiki puzzles")
     parser.add_argument("--repeats", type=int, default=REPEATS, help="Number of runs per (testcase, algorithm)")
     parser.add_argument(
+        "--algo",
+        "--algorithm",
+        dest="algo",
+        default="all",
+        help=(
+            "Which algorithm(s) to benchmark: backtracking|ac3|astar|forward|backward or all. "
+            "You can pass a comma/space-separated list, e.g. 'ac3,forward'."
+        ),
+    )
+    parser.add_argument(
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
@@ -287,23 +318,46 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    solvers: list[tuple[str, Callable[[str | Path], tuple[bool, float]]]] = [
-        ("Backtracking", _run_backtracking_peak_kb),
-        ("AC_3", _run_ac3_peak_kb),
-        ("AStar", _run_astar_peak_kb),
-        ("ForwardChaining", _run_forward_peak_kb),
-        ("BackwardChaining", _run_backward_peak_kb),
+    solvers_all: list[tuple[str, str, Callable[[str | Path], tuple[bool, float]]]] = [
+        ("backtracking", "Backtracking", _run_backtracking_peak_kb),
+        ("ac3", "AC_3", _run_ac3_peak_kb),
+        ("astar", "AStar", _run_astar_peak_kb),
+        ("forward", "ForwardChaining", _run_forward_peak_kb),
+        ("backward", "BackwardChaining", _run_backward_peak_kb),
     ]
+
+    algo_raw = str(args.algo or "all").strip().lower()
+    if algo_raw in ("", "all", "*"):
+        solvers = solvers_all
+    else:
+        tokens = [t for t in re.split(r"[ ,;]+", algo_raw) if t.strip()]
+        selected: set[str] = set()
+        unknown: list[str] = []
+        for tok in tokens:
+            key = _normalize_algo_token(tok)
+            if key is None:
+                unknown.append(tok)
+            else:
+                selected.add(key)
+        if unknown:
+            raise SystemExit(
+                "Unknown --algo value(s): "
+                + ", ".join(unknown)
+                + ". Expected backtracking|ac3|astar|forward|backward|all (aliases: bt, ac-3, a*, fc, bc)."
+            )
+        solvers = [s for s in solvers_all if s[0] in selected]
+        if not solvers:
+            raise SystemExit("No algorithms selected. Use --algo all or a non-empty list like 'ac3,forward'.")
 
     input_paths = _inputs_to_benchmark(PROJECT_ROOT)
 
-    solver_names = [name for name, _ in solvers]
+    solver_names = [name for _key, name, _fn in solvers]
     input_names = [p.name for p in input_paths]
 
     matrix_cells: list[list[BenchmarkCell]] = [[BenchmarkCell(status="error")] * len(solvers) for _ in input_paths]
 
     for r, input_path in enumerate(input_paths):
-        for c, (solver_name, solver_fn) in enumerate(solvers):
+        for c, (_key, solver_name, solver_fn) in enumerate(solvers):
             if args.isolation == "all":
                 isolate = True
             elif args.isolation == "backward":
