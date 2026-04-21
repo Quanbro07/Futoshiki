@@ -1,46 +1,39 @@
-# algorithm/ForwardChaining.py
 import sys
 import os
 import time
 import tracemalloc
 
-# Đảm bảo import được helperFunction và fol
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from helperFunction.GenerateKB import generate_KB 
 from helperFunction.ParseInput import parse_input
+from algorithm.PerformanceMetrics import PerformanceMetrics
 
-class ForwardChaining:
+class ForwardChaining(PerformanceMetrics):
     def __init__(self, inputFile):
+        super().__init__()
         self.kb = generate_KB(inputFile)
         self.N, _, _, _, _, _ = parse_input(inputFile)
         
-        # Các biến đo lường hiệu năng
-        self.run_time = 0
-        self.memory_usage = 0
-
         self.domains = { (i, j): list(range(1, self.N + 1)) 
                          for i in range(1, self.N + 1) for j in range(1, self.N + 1) }
         
         for lit in self.kb.facts:
             pred = lit.predicate
             p_name = pred.__class__.__name__ 
-            
             if p_name in ["Val", "Given"]:
                 r, c, v = pred.args
                 self.domains[(r, c)] = [v]
 
     def solve(self):
-        # Bắt đầu đo bộ nhớ và thời gian
         tracemalloc.start()
-        start_time = time.time()
+        start_time = time.perf_counter()
         
         success = self._run_inference()
         
-        # Kết thúc đo
-        self.run_time = time.time() - start_time
-        current, peak = tracemalloc.get_traced_memory()
-        self.memory_usage = peak / 1024  # Chuyển sang KB
+        self.time = time.perf_counter() - start_time
+        _, peak_mem = tracemalloc.get_traced_memory()
+        self.memory = peak_mem / 1024
         tracemalloc.stop()
         
         return success
@@ -49,13 +42,10 @@ class ForwardChaining:
         changed = True
         while changed:
             changed = False
-            
-            # Suy diễn từ Definite Clauses
             for clause in self.kb.definite_clauses:
                 if self.apply_definite_clause(clause):
                     changed = True
 
-            # Ràng buộc Unique (Hàng/Cột)
             for i in range(1, self.N + 1):
                 for j in range(1, self.N + 1):
                     if len(self.domains[(i, j)]) == 1:
@@ -68,12 +58,9 @@ class ForwardChaining:
     def apply_definite_clause(self, clause):
         res = False
         concl_name = clause.conclusion.predicate.__class__.__name__
-        
         if concl_name == "Less":
-            # Tìm predicate chỉ hướng trong conditions
             direction_pred = next((c.predicate for c in clause.conditions 
                                 if c.predicate.__class__.__name__ in ["LessH", "GreaterH", "LessV", "GreaterV"]), None)
-            
             if direction_pred:
                 p_name = direction_pred.__class__.__name__
                 r, c = direction_pred.args
@@ -85,12 +72,9 @@ class ForwardChaining:
     
     def constrain_pair(self, S, B):
         res = False
-        
-        # 1. Kiểm tra an toàn domain
         if S not in self.domains or B not in self.domains: return False
         if not self.domains[S] or not self.domains[B]: return False
         
-        # 2. Cắt tỉa ô nhỏ (S): giá trị phải < Max của ô lớn (B)
         max_B = max(self.domains[B])
         new_S = [v for v in self.domains[S] if v < max_B]
         if len(new_S) < len(self.domains[S]):
@@ -98,7 +82,6 @@ class ForwardChaining:
             res = True
             if not self.domains[S]: return res
 
-        # 3. Cắt tỉa ô lớn (B): giá trị phải > Min của ô nhỏ (S)
         min_S = min(self.domains[S])
         new_B = [v for v in self.domains[B] if v > min_S]
         if len(new_B) < len(self.domains[B]):
@@ -125,38 +108,27 @@ class ForwardChaining:
     def print_pretty_grid(self, inputFile):
         N, _, less_h, greater_h, less_v, greater_v = parse_input(inputFile)
         grid_data = self.get_grid()
-        
-        # Độ rộng cố định cho mỗi số để dễ căn lề (ví dụ: 3 ký tự)
         cell_w = 3 
-        
         print(f"\n--- Futoshiki {N}x{N} Result ---")
         for i in range(1, N + 1):
-            # 1. In hàng số và dấu ngang
             row_str = ""
             for j in range(1, N + 1):
                 val = grid_data[i-1][j-1]
                 num = str(val) if val != 0 else "."
-                row_str += num.center(cell_w) # Căn giữa con số
-                
+                row_str += num.center(cell_w)
                 if j < N:
                     if (i, j) in less_h: row_str += "<"
                     elif (i, j) in greater_h: row_str += ">"
-                    else: row_str += " " # Khoảng trống giữa các số
+                    else: row_str += " "
             print(row_str)
-
-            # 2. In hàng dấu dọc (^, v)
             if i < N:
                 sep_str = ""
                 for j in range(1, N + 1):
-                    # Căn lề dấu dọc đúng vị trí cột của số bên trên
                     char = " "
                     if (i, j) in less_v: char = "^"
                     elif (i, j) in greater_v: char = "v"
-                    
                     sep_str += char.center(cell_w)
-                    
-                    if j < N:
-                        sep_str += " " # Khoảng trống bù cho vị trí dấu ngang
+                    if j < N: sep_str += " "
                 print(sep_str)
 
     def is_solved(self):
@@ -165,25 +137,20 @@ class ForwardChaining:
     def is_failed(self):
         for pos, v in self.domains.items():
             if len(v) == 0:
-                print(f"DEBUG: Ô {pos} bị rỗng domain!") # Dòng này sẽ cứu bạn
+                print(f"DEBUG: Ô {pos} bị rỗng domain!")
                 return True
         return False
 
-# --- MAIN CHẠY TERMINAL ---
 if __name__ == "__main__":
-    path = "Inputs/input5.txt" 
+    path = "Inputs/input6.txt" 
     if os.path.exists(path):
         solver = ForwardChaining(path)
         print(f"--- Running Forward Chaining Inference ---")
-        
         result = solver.solve()
-        
         if result:
-            # Gọi hàm in đẹp thay vì in thô
             solver.print_pretty_grid(path)
         else:
             print("No solution found.")
-            
-        print("-" * 30)
-        print(f"Time:    {solver.run_time:.4f}s")
-        print(f"Memory:  {solver.memory_usage:.2f}KB")
+        print("=" * 30)
+        print(f"Execution Time: {solver.time:.4f} seconds")
+        print(f"Peak Memory:    {solver.memory:.2f} KB")
