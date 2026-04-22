@@ -114,7 +114,7 @@ class ForwardChaining(PerformanceMetrics):
             row_str = ""
             for j in range(1, N + 1):
                 val = grid_data[i-1][j-1]
-                num = str(val) if val != 0 else "."
+                num = str(val) if val != 0 else "0"
                 row_str += num.center(cell_w)
                 if j < N:
                     if (i, j) in less_h: row_str += "<"
@@ -142,7 +142,7 @@ class ForwardChaining(PerformanceMetrics):
         return False
 
 if __name__ == "__main__":
-    path = "Inputs/input6.txt" 
+    path = "Inputs/input8.txt" 
     if os.path.exists(path):
         solver = ForwardChaining(path)
         print(f"--- Running Forward Chaining Inference ---")
