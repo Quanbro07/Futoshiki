@@ -21,6 +21,15 @@ from helperFunction.GenerateKB import generate_KB
 
 # Configurable via CLI in main().
 _BACKWARD_TIMEOUT_S: float = 0.0
+_PRINT_OUTPUT: bool = False
+
+
+def _maybe_print_output(output: str) -> None:
+    if not _PRINT_OUTPUT:
+        return
+    print("OUTPUT TEXT:")
+    # Avoid double newlines; the output is typically already newline-terminated.
+    print(output, end="" if output.endswith("\n") else "\n")
 
 
 def _sorted_input_files(inputs_dir: str) -> list[str]:
@@ -184,6 +193,7 @@ def run_backtracking(input_path: str, output_path: str) -> None:
         output = "No solution\n"
 
     write_output(output_path, output)
+    _maybe_print_output(output)
 
     _print_case_footer(
         ok=ok,
@@ -206,6 +216,7 @@ def run_ac3(input_path: str, output_path: str) -> None:
         output = "No solution\n"
 
     write_output(output_path, output)
+    _maybe_print_output(output)
 
     _print_case_footer(
         ok=ok,
@@ -228,6 +239,7 @@ def run_astar(input_path: str, output_path: str) -> None:
         output = "No solution\n"
 
     write_output(output_path, output)
+    _maybe_print_output(output)
 
     _print_case_footer(
         ok=ok,
@@ -254,6 +266,7 @@ def run_forward(input_path: str, output_path: str) -> None:
         output = "No solution\n"
 
     write_output(output_path, output)
+    _maybe_print_output(output)
 
     _print_case_footer(
         ok=ok,
@@ -283,6 +296,7 @@ def run_backward(input_path: str, output_path: str) -> None:
             output = f"TIMEOUT after {_BACKWARD_TIMEOUT_S:.2f} seconds\n"
 
             write_output(output_path, output)
+            _maybe_print_output(output)
             _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=expanded_nodes, output_path=output_path)
             return
 
@@ -294,7 +308,9 @@ def run_backward(input_path: str, output_path: str) -> None:
 
         if "error" in result:
             ok = False
-            write_output(output_path, f"ERROR: {result['error']}\n")
+            output = f"ERROR: {result['error']}\n"
+            write_output(output_path, output)
+            _maybe_print_output(output)
             _print_case_footer(ok=False, seconds=None, peak_kb=None, expanded_nodes=None, output_path=output_path)
             return
 
@@ -305,6 +321,7 @@ def run_backward(input_path: str, output_path: str) -> None:
         output = str(result.get("output", ""))
 
         write_output(output_path, output)
+        _maybe_print_output(output)
         _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=expanded_nodes, output_path=output_path)
         return
 
@@ -332,6 +349,7 @@ def run_backward(input_path: str, output_path: str) -> None:
         output = "No solution\n"
 
     write_output(output_path, output)
+    _maybe_print_output(output)
 
     _print_case_footer(
         ok=ok,
@@ -386,6 +404,12 @@ def main() -> int:
         help="Timeout in seconds for backward chaining (0 = no timeout).",
     )
     parser.add_argument(
+        "--print-output",
+        dest="print_output",
+        action="store_true",
+        help="Also print the output text to the terminal for each case (in addition to writing the output file).",
+    )
+    parser.add_argument(
         "--cases",
         dest="cases",
         default="",
@@ -396,6 +420,9 @@ def main() -> int:
 
     global _BACKWARD_TIMEOUT_S
     _BACKWARD_TIMEOUT_S = float(args.backward_timeout or 0.0)
+
+    global _PRINT_OUTPUT
+    _PRINT_OUTPUT = bool(args.print_output)
 
     input_files = _sorted_input_files(args.inputs_dir)
 
@@ -459,7 +486,9 @@ def main() -> int:
             except Exception as ex:
                 print(f"ERROR while running {algo_name} on {os.path.basename(input_path)}: {ex}")
                 try:
-                    write_output(output_path, f"ERROR: {ex}\n")
+                    output = f"ERROR: {ex}\n"
+                    write_output(output_path, output)
+                    _maybe_print_output(output)
                 except Exception:
                     pass
                 _print_case_footer(ok=False, seconds=None, peak_kb=None, expanded_nodes=None, output_path=output_path)
