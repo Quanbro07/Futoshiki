@@ -13,18 +13,24 @@
 
 - Input following lines in terminal:
   git clone <https://github.com/Quanbro07/Futoshiki.git>
-  cd freecell_
+  cd Futoshiki
 
 3. Install environment & libraries
 
-- In case using Window as your operating system:
+- In case using Windows as your operating system:
   python -m venv venv
-  .\venv\Scripts\activate
-  pip install pygame
+  .\venv\Scripts\Activate.ps1
+  pip install -r requirements.txt
+
+  If PowerShell blocks `Activate.ps1`, run this once in the same terminal and try again:
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 
 - In case using Linux/macOS as your operating system:
   python3 -m venv venv
   source venv/bin/activate
+  pip install -r requirements.txt
+
+  If you hit issues installing from `requirements.txt`, you can install the main dependency directly:
   pip install pygame
 
 4. Run
@@ -41,7 +47,7 @@
 * **`GUI/`**: User interface, designed using Pygame.
 * **`helperFunction/`**: Includes helper functions for data processing or algorithms.
 * **`Inputs/`**: Contains input data files (e.g., Futoshiki grid maps).
-* **`Outputs/`**: Contains output data and results after algorithm execution.
+* **`Outputs/`**: Contains output data and results of all algorithms after execution.
 * **`state/`**: Defines the game states (Grid board, Empty cells, Greater/Less than constraints).
 * **`testing/`**: Contains test cases to evaluate the system.
 * **`main.py`**: Main execution file of the project (Initializes UI and Game).
