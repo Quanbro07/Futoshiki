@@ -22,10 +22,7 @@ from helperFunction.GenerateKB import generate_KB
 # Configurable via CLI in main().
 _BACKWARD_TIMEOUT_S: float = 0.0
 _PRINT_OUTPUT: bool = False
-<<<<<<< HEAD
-=======
 _WRITE_OUTPUT_FILES: bool = True
->>>>>>> hnhi
 
 
 def _maybe_print_output(output: str) -> None:
@@ -34,8 +31,6 @@ def _maybe_print_output(output: str) -> None:
     print("OUTPUT TEXT:")
     # Avoid double newlines; the output is typically already newline-terminated.
     print(output, end="" if output.endswith("\n") else "\n")
-<<<<<<< HEAD
-=======
 
 
 def _maybe_write_output(output_path: Optional[str], output: str) -> None:
@@ -44,7 +39,6 @@ def _maybe_write_output(output_path: Optional[str], output: str) -> None:
     if not output_path:
         return
     write_output(output_path, output)
->>>>>>> hnhi
 
 
 def _sorted_input_files(inputs_dir: str) -> list[str]:
@@ -184,11 +178,7 @@ def run_backtracking(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-<<<<<<< HEAD
-    write_output(output_path, output)
-=======
     _maybe_write_output(output_path, output)
->>>>>>> hnhi
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -211,11 +201,7 @@ def run_ac3(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-<<<<<<< HEAD
-    write_output(output_path, output)
-=======
     _maybe_write_output(output_path, output)
->>>>>>> hnhi
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -238,11 +224,7 @@ def run_astar(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-<<<<<<< HEAD
-    write_output(output_path, output)
-=======
     _maybe_write_output(output_path, output)
->>>>>>> hnhi
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -269,11 +251,7 @@ def run_forward(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-<<<<<<< HEAD
-    write_output(output_path, output)
-=======
     _maybe_write_output(output_path, output)
->>>>>>> hnhi
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -303,11 +281,7 @@ def run_backward(input_path: str, output_path: str) -> None:
             expanded_nodes: Optional[int] = None
             output = f"TIMEOUT after {_BACKWARD_TIMEOUT_S:.2f} seconds\n"
 
-<<<<<<< HEAD
-            write_output(output_path, output)
-=======
             _maybe_write_output(output_path, output)
->>>>>>> hnhi
             _maybe_print_output(output)
             _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=expanded_nodes, output_path=output_path)
             return
@@ -321,11 +295,7 @@ def run_backward(input_path: str, output_path: str) -> None:
         if "error" in result:
             ok = False
             output = f"ERROR: {result['error']}\n"
-<<<<<<< HEAD
-            write_output(output_path, output)
-=======
             _maybe_write_output(output_path, output)
->>>>>>> hnhi
             _maybe_print_output(output)
             _print_case_footer(ok=False, seconds=None, peak_kb=None, expanded_nodes=None, output_path=output_path)
             return
@@ -336,11 +306,7 @@ def run_backward(input_path: str, output_path: str) -> None:
         expanded_nodes = result.get("expanded_nodes")
         output = str(result.get("output", ""))
 
-<<<<<<< HEAD
-        write_output(output_path, output)
-=======
         _maybe_write_output(output_path, output)
->>>>>>> hnhi
         _maybe_print_output(output)
         _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=expanded_nodes, output_path=output_path)
         return
@@ -361,11 +327,7 @@ def run_backward(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-<<<<<<< HEAD
-    write_output(output_path, output)
-=======
     _maybe_write_output(output_path, output)
->>>>>>> hnhi
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -441,13 +403,10 @@ def main() -> int:
     global _PRINT_OUTPUT
     _PRINT_OUTPUT = bool(args.print_output)
 
-<<<<<<< HEAD
-=======
     global _WRITE_OUTPUT_FILES
     # Requirement: if --print-output is set, do not create/write output files.
     _WRITE_OUTPUT_FILES = not _PRINT_OUTPUT
 
->>>>>>> hnhi
     input_files = _sorted_input_files(args.inputs_dir)
 
     # Optional filtering by input indices (e.g., input-13.txt -> 13).
@@ -517,11 +476,7 @@ def main() -> int:
                 print(f"ERROR while running {algo_name} on {os.path.basename(input_path)}: {ex}")
                 try:
                     output = f"ERROR: {ex}\n"
-<<<<<<< HEAD
-                    write_output(output_path, output)
-=======
                     _maybe_write_output(output_path, output)
->>>>>>> hnhi
                     _maybe_print_output(output)
                 except Exception:
                     pass
