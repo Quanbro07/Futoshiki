@@ -17,7 +17,6 @@ import re
 import statistics
 import sys
 import time
-import tracemalloc
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Literal
@@ -63,26 +62,6 @@ def _build_board(input_path: str | Path) -> Board:
     return Board(assignment, ctx)
 
 
-def _measure_peak_kb(fn: Callable[[], bool]) -> tuple[bool, float]:
-    """Return (ok, peak_kb) using tracemalloc for functions that don't stop it."""
-    tracing_before = tracemalloc.is_tracing()
-    if not tracing_before:
-        tracemalloc.start()
-
-    ok = fn()
-
-    if tracemalloc.is_tracing():
-        _, peak = tracemalloc.get_traced_memory()
-        peak_kb = peak / 1024
-    else:
-        peak_kb = 0.0
-
-    if not tracing_before and tracemalloc.is_tracing():
-        tracemalloc.stop()
-
-    return ok, peak_kb
-
-
 def _run_backtracking_peak_kb(input_path: str | Path) -> tuple[bool, float]:
     board = _build_board(input_path)
     solver = Backtracking()
@@ -119,11 +98,9 @@ def _run_backward_peak_kb(input_path: str | Path) -> tuple[bool, float]:
     N, given, less_h, greater_h, less_v, greater_v = parse_input(str(input_path))
     kb = generate_KB(str(input_path))
     solver = BackwardChainingSolver(kb, N, given.copy(), less_h, greater_h, less_v, greater_v)
-
-    def _solve() -> bool:
-        return solver.solve()
-
-    return _measure_peak_kb(_solve)
+    ok = solver.solve()
+    peak_kb = float(getattr(solver, "memory", 0.0) or 0.0)
+    return bool(ok), peak_kb
 
 
 def _normalize_algo_token(token: str) -> str | None:
@@ -242,9 +219,9 @@ def _inputs_to_benchmark(project_root: Path) -> list[Path]:
     inputs_dir = project_root / "Inputs"
 
     selected: list[str] = [
-        *(f"input-{i:02d}.txt" for i in range(1, 11)),
-        *(f"input-{i:02d}.txt" for i in range(18, 23)),
-        # *(f"input-{i:02d}.txt" for i in range(11, 18)),
+        # *(f"input-{i:02d}.txt" for i in range(1, 11)),
+        # *(f"input-{i:02d}.txt" for i in range(18, 23)),
+        *(f"input-{i:02d}.txt" for i in range(11, 18)),
     ]
 
     paths = [inputs_dir / name for name in selected]

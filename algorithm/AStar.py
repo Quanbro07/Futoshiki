@@ -1,3 +1,20 @@
+"""A* solver.
+
+This file is typically imported and run from the project root (e.g. via
+`run_algorithms.py`). If executed directly (`python .\algorithm\AStar.py`),
+we add the project root to `sys.path` so absolute imports like `state.*` work.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+
+if __name__ == "__main__" and __package__ is None:
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
 from state.Board import Board
 from state.PuzzleContext import PuzzleContext
 
@@ -237,7 +254,7 @@ class AStar:
         return result
     
 def main():
-    input = r"Inputs\test.txt"
+    input = r"Inputs\input-11.txt"
     
     N, given, less_h, greater_h, less_v, greater_v = parse_input(input)
     print(given)

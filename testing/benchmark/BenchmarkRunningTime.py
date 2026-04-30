@@ -17,7 +17,6 @@ import argparse
 import re
 import statistics
 import sys
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Literal
@@ -63,31 +62,44 @@ def _build_board(input_path: str | Path) -> Board:
     return Board(assignment, ctx)
 
 
-def _run_backtracking(input_path: str | Path) -> bool:
+def _run_backtracking(input_path: str | Path) -> tuple[bool, float]:
     board = _build_board(input_path)
-    return Backtracking().solve(board)
+    solver = Backtracking()
+    ok = solver.solve(board)
+    seconds = float(getattr(solver, "time", 0.0) or 0.0)
+    return bool(ok), seconds
 
 
-def _run_ac3(input_path: str | Path) -> bool:
+def _run_ac3(input_path: str | Path) -> tuple[bool, float]:
     board = _build_board(input_path)
-    return AC_3().solve(board)
+    solver = AC_3()
+    ok = solver.solve(board)
+    seconds = float(getattr(solver, "time", 0.0) or 0.0)
+    return bool(ok), seconds
 
 
-def _run_astar(input_path: str | Path) -> bool:
+def _run_astar(input_path: str | Path) -> tuple[bool, float]:
     board = _build_board(input_path)
-    return AStar().solve(board)
+    solver = AStar()
+    ok = solver.solve(board)
+    seconds = float(getattr(solver, "time", 0.0) or 0.0)
+    return bool(ok), seconds
 
 
-def _run_forward_chaining(input_path: str | Path) -> bool:
+def _run_forward_chaining(input_path: str | Path) -> tuple[bool, float]:
     solver = ForwardChaining(str(input_path))
-    return bool(solver.solve())
+    ok = bool(solver.solve())
+    seconds = float(getattr(solver, "time", 0.0) or 0.0)
+    return ok, seconds
 
 
-def _run_backward_chaining(input_path: str | Path) -> bool:
+def _run_backward_chaining(input_path: str | Path) -> tuple[bool, float]:
     N, given, less_h, greater_h, less_v, greater_v = parse_input(str(input_path))
     kb = generate_KB(str(input_path))
     solver = BackwardChainingSolver(kb, N, given, less_h, greater_h, less_v, greater_v)
-    return solver.solve()
+    ok = solver.solve()
+    seconds = float(getattr(solver, "time", 0.0) or 0.0)
+    return bool(ok), seconds
 
 
 def _benchmark_worker(
@@ -104,7 +116,7 @@ def _benchmark_worker(
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
 
-    solver_map: dict[str, Callable[[str | Path], bool]] = {
+    solver_map: dict[str, Callable[[str | Path], tuple[bool, float]]] = {
         "Backtracking": _run_backtracking,
         "AC_3": _run_ac3,
         "AStar": _run_astar,
@@ -122,7 +134,7 @@ def _benchmark_worker(
 
 def _benchmark_one_with_timeout(
     solver_name: str,
-    solver_fn: Callable[[str | Path], bool],
+    solver_fn: Callable[[str | Path], tuple[bool, float]],
     input_path: Path,
     repeats: int,
     timeout_seconds: float | None,
@@ -166,7 +178,7 @@ def _benchmark_one_with_timeout(
 
 
 def _benchmark_one(
-    solver_fn: Callable[[str | Path], bool],
+    solver_fn: Callable[[str | Path], tuple[bool, float]],
     input_path: Path,
     repeats: int,
 ) -> BenchmarkResult:
@@ -176,10 +188,8 @@ def _benchmark_one(
     # Silence prints inside solvers to keep IO from skewing results.
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         for _ in range(repeats):
-            start = time.perf_counter()
-            solved = solver_fn(input_path)
-            end = time.perf_counter()
-            times.append(end - start)
+            solved, seconds = solver_fn(input_path)
+            times.append(float(seconds))
 
     return BenchmarkResult(avg_seconds=statistics.fmean(times), solved=solved)
 
@@ -290,7 +300,7 @@ def main() -> None:
 
     project_root = PROJECT_ROOT
 
-    solvers_all: list[tuple[str, str, Callable[[str | Path], bool]]] = [
+    solvers_all: list[tuple[str, str, Callable[[str | Path], tuple[bool, float]]]] = [
         ("backtracking", "Backtracking", _run_backtracking),
         ("ac3", "AC_3", _run_ac3),
         ("astar", "AStar", _run_astar),

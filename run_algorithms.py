@@ -22,6 +22,7 @@ from helperFunction.GenerateKB import generate_KB
 # Configurable via CLI in main().
 _BACKWARD_TIMEOUT_S: float = 0.0
 _PRINT_OUTPUT: bool = False
+_WRITE_OUTPUT_FILES: bool = True
 
 
 def _maybe_print_output(output: str) -> None:
@@ -30,6 +31,14 @@ def _maybe_print_output(output: str) -> None:
     print("OUTPUT TEXT:")
     # Avoid double newlines; the output is typically already newline-terminated.
     print(output, end="" if output.endswith("\n") else "\n")
+
+
+def _maybe_write_output(output_path: Optional[str], output: str) -> None:
+    if not _WRITE_OUTPUT_FILES:
+        return
+    if not output_path:
+        return
+    write_output(output_path, output)
 
 
 def _sorted_input_files(inputs_dir: str) -> list[str]:
@@ -57,29 +66,6 @@ def _grid_from_assignment(N: int, assignment: dict[tuple[int, int], int]) -> lis
     for (r, c), v in assignment.items():
         grid[r - 1][c - 1] = v
     return grid
-
-
-def _measure(fn: Callable[[], bool]) -> tuple[bool, float, float]:
-    """Return (ok, seconds, peak_kb)."""
-    tracing_before = tracemalloc.is_tracing()
-    if not tracing_before:
-        tracemalloc.start()
-
-    start = time.perf_counter()
-    ok = fn()
-    elapsed = time.perf_counter() - start
-
-    peak_kb: float
-    if tracemalloc.is_tracing():
-        _, peak = tracemalloc.get_traced_memory()
-        peak_kb = peak / 1024
-    else:
-        peak_kb = 0.0
-
-    if not tracing_before and tracemalloc.is_tracing():
-        tracemalloc.stop()
-
-    return ok, elapsed, peak_kb
 
 
 def _print_case_header(algo: str, input_path: str):
@@ -192,7 +178,7 @@ def run_backtracking(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-    write_output(output_path, output)
+    _maybe_write_output(output_path, output)
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -215,7 +201,7 @@ def run_ac3(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-    write_output(output_path, output)
+    _maybe_write_output(output_path, output)
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -238,7 +224,7 @@ def run_astar(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-    write_output(output_path, output)
+    _maybe_write_output(output_path, output)
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -265,7 +251,7 @@ def run_forward(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-    write_output(output_path, output)
+    _maybe_write_output(output_path, output)
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -295,7 +281,7 @@ def run_backward(input_path: str, output_path: str) -> None:
             expanded_nodes: Optional[int] = None
             output = f"TIMEOUT after {_BACKWARD_TIMEOUT_S:.2f} seconds\n"
 
-            write_output(output_path, output)
+            _maybe_write_output(output_path, output)
             _maybe_print_output(output)
             _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=expanded_nodes, output_path=output_path)
             return
@@ -309,7 +295,7 @@ def run_backward(input_path: str, output_path: str) -> None:
         if "error" in result:
             ok = False
             output = f"ERROR: {result['error']}\n"
-            write_output(output_path, output)
+            _maybe_write_output(output_path, output)
             _maybe_print_output(output)
             _print_case_footer(ok=False, seconds=None, peak_kb=None, expanded_nodes=None, output_path=output_path)
             return
@@ -320,7 +306,7 @@ def run_backward(input_path: str, output_path: str) -> None:
         expanded_nodes = result.get("expanded_nodes")
         output = str(result.get("output", ""))
 
-        write_output(output_path, output)
+        _maybe_write_output(output_path, output)
         _maybe_print_output(output)
         _print_case_footer(ok=ok, seconds=seconds, peak_kb=peak_kb, expanded_nodes=expanded_nodes, output_path=output_path)
         return
@@ -331,16 +317,9 @@ def run_backward(input_path: str, output_path: str) -> None:
     kb = generate_KB(input_path)
     solver = BackwardChainingSolver(kb, N, given.copy(), less_h, greater_h, less_v, greater_v)
 
-    ok: bool
-    seconds: float
-    peak_kb: float
-
-    def _solve():
-        nonlocal ok
-        ok = solver.solve()
-        return ok
-
-    ok, seconds, peak_kb = _measure(_solve)
+    ok = solver.solve()
+    seconds = getattr(solver, "time", None)
+    peak_kb = getattr(solver, "memory", None)
 
     if ok:
         grid = _grid_from_assignment(N, solver.assignment)
@@ -348,7 +327,7 @@ def run_backward(input_path: str, output_path: str) -> None:
     else:
         output = "No solution\n"
 
-    write_output(output_path, output)
+    _maybe_write_output(output_path, output)
     _maybe_print_output(output)
 
     _print_case_footer(
@@ -424,6 +403,10 @@ def main() -> int:
     global _PRINT_OUTPUT
     _PRINT_OUTPUT = bool(args.print_output)
 
+    global _WRITE_OUTPUT_FILES
+    # Requirement: if --print-output is set, do not create/write output files.
+    _WRITE_OUTPUT_FILES = not _PRINT_OUTPUT
+
     input_files = _sorted_input_files(args.inputs_dir)
 
     # Optional filtering by input indices (e.g., input-13.txt -> 13).
@@ -468,18 +451,24 @@ def main() -> int:
         algo_list = [canonical]
 
     multi_algo = len(algo_list) > 1
-    os.makedirs(args.outputs_dir, exist_ok=True)
+    if _WRITE_OUTPUT_FILES:
+        os.makedirs(args.outputs_dir, exist_ok=True)
 
     for algo_name in algo_list:
         runner = ALGO_RUNNERS[algo_name]
         for idx, input_path in enumerate(input_files, start=1):
-            output_path = _output_path_for_input(
-                input_path=input_path,
-                outputs_dir=args.outputs_dir,
-                algo_name=algo_name,
-                multi_algo=multi_algo,
-                fallback_index=idx,
-            )
+            output_path: str
+            if _WRITE_OUTPUT_FILES:
+                output_path = _output_path_for_input(
+                    input_path=input_path,
+                    outputs_dir=args.outputs_dir,
+                    algo_name=algo_name,
+                    multi_algo=multi_algo,
+                    fallback_index=idx,
+                )
+            else:
+                # Placeholder path for printing; no file will be created.
+                output_path = ""
             _print_case_header(algo_name, input_path)
             try:
                 runner(input_path, output_path)
@@ -487,11 +476,11 @@ def main() -> int:
                 print(f"ERROR while running {algo_name} on {os.path.basename(input_path)}: {ex}")
                 try:
                     output = f"ERROR: {ex}\n"
-                    write_output(output_path, output)
+                    _maybe_write_output(output_path, output)
                     _maybe_print_output(output)
                 except Exception:
                     pass
-                _print_case_footer(ok=False, seconds=None, peak_kb=None, expanded_nodes=None, output_path=output_path)
+                _print_case_footer(ok=False, seconds=None, peak_kb=None, expanded_nodes=None, output_path=(output_path or None))
 
     return 0
 
